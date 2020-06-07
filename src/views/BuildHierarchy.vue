@@ -2,32 +2,44 @@
   <div class="build-hierarchy" style="min-width: 300px;min-height: 300px; border: 1px solid;">
     <upload-xlsx v-model="xlsx" />
 
-    <div v-for="sheet of sheets" :key="sheet.name" class="sheet">
-      <el-checkbox v-model="sheet.enabled">{{ sheet.name }}</el-checkbox>
-      <!-- <el-input v-model="sheet.columns" placeholder="column set"></el-input> -->
-      <div style="display:flex;align-items:center;">
-        <span style="margin-right:1em">rows for hierarchy</span>
-        <el-checkbox-group v-model="sheet.columns" size="mini">
-          <el-checkbox-button label="A"></el-checkbox-button>
-          <el-checkbox-button label="B"></el-checkbox-button>
-        </el-checkbox-group>
-      </div>
-      <!-- <el-input v-model="sheet.rows" placeholder="row range" size="mini"></el-input> -->
-      <div style="display:flex;align-items:center;">
-        <span style="margin-right:1em">column range</span>
-        <el-slider v-model="sheet.rows" range :max="sheet.rowMax" style="flex: 1 1"></el-slider>
-      </div>
+    <div v-for="setting of settings" :key="setting.name">
+      <el-tabs type="border-card">
+        <el-tab-pane>
+          <template #label>
+            <el-checkbox v-model="setting.enabled">{{ setting.name }}</el-checkbox>
+          </template>
+          <div style="display:flex;align-items:center;">
+            <span style="margin-right:1em">rows for hierarchy</span>
+            <el-checkbox-group v-model="setting.columns" size="mini">
+              <el-checkbox-button v-for="col of setting.colList" :key="col" :label="col"></el-checkbox-button>
+            </el-checkbox-group>
+          </div>
+          <div style="display:flex;align-items:center;">
+            <span style="margin-right:1em">column range</span>
+            <el-slider
+              v-model="setting.rows"
+              range
+              :min="1"
+              :max="setting.rowMax"
+              style="flex: 1 1"
+            ></el-slider>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
     </div>
 
-    <preview-hierarchy v-model="hierarchy" />
+    <el-tree :data="[hierarchy]" default-expand-all>
+      <template #default="{ data: { children, ...data } }">
+        <div>{{ data }}</div>
+      </template>
+    </el-tree>
   </div>
 </template>
 
 <script lang="ts">
 import Vue from 'vue'
 import UploadXlsx from '../components/UploadXlsx.vue'
-import PreviewHierarchy from '../components/PreviewHierarchy.vue'
-import { Checkbox, Input, InputNumber, CheckboxButton, CheckboxGroup, Slider } from 'element-ui'
+import { Checkbox, Input, InputNumber, CheckboxButton, CheckboxGroup, Slider, TabPane, Tabs, Tree } from 'element-ui'
 import * as XLSX from 'xlsx'
 
 Vue.use(Checkbox)
@@ -36,6 +48,9 @@ Vue.use(InputNumber)
 Vue.use(CheckboxButton)
 Vue.use(CheckboxGroup)
 Vue.use(Slider)
+Vue.use(Tabs)
+Vue.use(TabPane)
+Vue.use(Tree)
 
 function numToAlpha(num: number) {
   let alpha = ''
@@ -45,58 +60,84 @@ function numToAlpha(num: number) {
   return alpha;
 }
 
+function getAlphaList(start: number, end: number): string[] {
+  const arr: string[] = []
+  for (let i = start; i <= end; i++) {
+    arr.push(numToAlpha(i))
+  }
+  return arr
+}
+
+interface Setting {
+  name: string;
+  enabled: boolean;
+  columns: string[];
+  colList: string[];
+  rows: [number, number];
+  rowMax: number;
+}
+
+function getSettings(book: XLSX.WorkBook): Setting[] {
+  return book.SheetNames.map(v => {
+    const ref = book.Sheets[v]['!ref']
+    const rowMin = ref ? XLSX.utils.decode_range(ref).s.r + 1 : 0
+    const rowMax = ref ? XLSX.utils.decode_range(ref).e.r + 1 : 100
+    const colMax = ref ? XLSX.utils.decode_range(ref).e.c : 100
+    const colList = getAlphaList(0, colMax)
+    return {
+      name: v,
+      enabled: true,
+      columns: [...colList],
+      colList,
+      rows: [rowMin, rowMax],
+      rowMax
+    }
+  })
+}
+
+type Hierarchy = Children & Data
+
+interface Data {
+  text?: string;
+}
+
+interface Children {
+  children?: Hierarchy[];
+}
+
+function getHierarchy(settings: Setting[], root?: Data): Hierarchy {
+  return {
+    children: settings.filter(v => v.enabled).map(v => ({
+      text: v.name
+    })),
+    ...root
+  }
+}
+
 export default Vue.extend({
-  components: { UploadXlsx, PreviewHierarchy },
+  components: { UploadXlsx },
   data(): {
     xlsx?: XLSX.WorkBook;
-    hierarchy?: {};
-    sheets: {}[];
+    settings: Setting[];
   } {
     return {
       xlsx: undefined,
-      hierarchy: {
-        text: 'root',
-        children: [
-          { text: 'c1' },
-          { text: 'c2' },
-          {
-            text: 'c3',
-            children: [
-              { text: 'c3-1' },
-              { text: 'c3-2' },
-            ]
-          },
-        ]
-      },
-      sheets: []
+      settings: []
+    }
+  },
+  computed: {
+    hierarchy() {
+      const { settings, xlsx }: { xlsx?: XLSX.WorkBook; settings: Setting[] } = this
+      const root = xlsx ? {
+        text: xlsx.Props ? xlsx.Props.Title : undefined
+      } : undefined
+      return getHierarchy(settings, root)
     }
   },
   watch: {
     xlsx(value: XLSX.WorkBook) {
-      this.sheets = value.SheetNames.map(v => {
-        const ref = value.Sheets[v]['!ref']
-        const rowMin = ref ? XLSX.utils.decode_range(ref).s.r : 0
-        const rowMax = ref ? XLSX.utils.decode_range(ref).e.r : 100
-        return {
-          name: v,
-          enabled: true,
-          columns: [],
-          rows: [rowMin, rowMax],
-          rowMax
-        }
-      })
+      this.settings = getSettings(value)
     }
   }
 })
 </script>
-
-<style scoped>
-.sheet {
-  /* display: flex; */
-  /* align-items: center; */
-  padding: 0.2em 1em;
-}
-.sheet > :not(:last-child) {
-  margin-right: 1em;
-}
-</style>
