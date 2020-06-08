@@ -33,6 +33,8 @@
         <div>{{ data }}</div>
       </template>
     </el-tree>
+
+    <treemap :value="hierarchy" />
   </div>
 </template>
 
@@ -41,16 +43,7 @@ import Vue from 'vue'
 import UploadXlsx from '../components/UploadXlsx.vue'
 import { Checkbox, Input, InputNumber, CheckboxButton, CheckboxGroup, Slider, TabPane, Tabs, Tree } from 'element-ui'
 import * as XLSX from 'xlsx'
-
-Vue.use(Checkbox)
-Vue.use(Input)
-Vue.use(InputNumber)
-Vue.use(CheckboxButton)
-Vue.use(CheckboxGroup)
-Vue.use(Slider)
-Vue.use(Tabs)
-Vue.use(TabPane)
-Vue.use(Tree)
+import Treemap from '../components/Treemap.vue'
 
 function numToAlpha(num: number) {
   let alpha = ''
@@ -77,67 +70,81 @@ interface Setting {
   rowMax: number;
 }
 
-function getSettings(book: XLSX.WorkBook): Setting[] {
-  return book.SheetNames.map(v => {
-    const ref = book.Sheets[v]['!ref']
-    const rowMin = ref ? XLSX.utils.decode_range(ref).s.r + 1 : 0
-    const rowMax = ref ? XLSX.utils.decode_range(ref).e.r + 1 : 100
-    const colMax = ref ? XLSX.utils.decode_range(ref).e.c : 100
-    const colList = getAlphaList(0, colMax)
-    return {
-      name: v,
-      enabled: true,
-      columns: [...colList],
-      colList,
-      rows: [rowMin, rowMax],
-      rowMax
-    }
-  })
-}
+export type Hierarchy = Children & Data
 
-type Hierarchy = Children & Data
-
-interface Data {
+export interface Data {
   text?: string;
 }
 
-interface Children {
+export interface Children {
   children?: Hierarchy[];
 }
 
-function getHierarchy(settings: Setting[], root?: Data): Hierarchy {
-  return {
-    children: settings.filter(v => v.enabled).map(v => ({
-      text: v.name
-    })),
-    ...root
-  }
-}
+Vue.use(Checkbox)
+Vue.use(Input)
+Vue.use(InputNumber)
+Vue.use(CheckboxButton)
+Vue.use(CheckboxGroup)
+Vue.use(Slider)
+Vue.use(Tabs)
+Vue.use(TabPane)
+Vue.use(Tree)
 
 export default Vue.extend({
-  components: { UploadXlsx },
+  components: { UploadXlsx, Treemap },
   data(): {
     xlsx?: XLSX.WorkBook;
     settings: Setting[];
+    hierarchy: Hierarchy;
   } {
     return {
       xlsx: undefined,
-      settings: []
-    }
-  },
-  computed: {
-    hierarchy() {
-      const { settings, xlsx }: { xlsx?: XLSX.WorkBook; settings: Setting[] } = this
-      const root = xlsx ? {
-        text: xlsx.Props ? xlsx.Props.Title : undefined
-      } : undefined
-      return getHierarchy(settings, root)
+      settings: [],
+      hierarchy: {}
     }
   },
   watch: {
     xlsx(value: XLSX.WorkBook) {
-      this.settings = getSettings(value)
+      this.settings = this.getSettings(value)
+    },
+    settings(value: Setting[]) {
+      const { xlsx } = this
+      const root = xlsx ? {
+        text: xlsx.Props ? xlsx.Props.Title : undefined
+      } : undefined
+      this.hierarchy = this.getHierarchy(value, root)
     }
+  },
+  methods: {
+    getSettings(book: XLSX.WorkBook): Setting[] {
+      return book.SheetNames.map(v => {
+        const ref = book.Sheets[v]['!ref']
+        const rowMin = ref ? XLSX.utils.decode_range(ref).s.r + 1 : 0
+        const rowMax = ref ? XLSX.utils.decode_range(ref).e.r + 1 : 100
+        const colMax = ref ? XLSX.utils.decode_range(ref).e.c : 100
+        const colList = getAlphaList(0, colMax)
+        return {
+          name: v,
+          enabled: true,
+          columns: [...colList],
+          colList,
+          rows: [rowMin, rowMax],
+          rowMax
+        }
+      })
+    },
+    getHierarchy(settings: Setting[], root?: Data): Hierarchy {
+      return {
+        children: settings.filter(v => v.enabled).map(v => ({
+          text: v.name,
+          // children: buildHierarchy()
+        })),
+        ...root
+      }
+    }
+    // buildHierarchy(sheet) {
+
+    // }
   }
 })
 </script>
