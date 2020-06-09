@@ -9,13 +9,13 @@
             <el-checkbox v-model="setting.enabled">{{ setting.name }}</el-checkbox>
           </template>
           <div style="display:flex;align-items:center;">
-            <span style="margin-right:1em">rows for hierarchy</span>
+            <span style="margin-right:1em">columns for hierarchy</span>
             <el-checkbox-group v-model="setting.columns" size="mini">
               <el-checkbox-button v-for="col of setting.colList" :key="col" :label="col"></el-checkbox-button>
             </el-checkbox-group>
           </div>
           <div style="display:flex;align-items:center;">
-            <span style="margin-right:1em">column range</span>
+            <span style="margin-right:1em">row range</span>
             <el-slider
               v-model="setting.rows"
               range
@@ -70,14 +70,10 @@ interface Setting {
   rowMax: number;
 }
 
-export type Hierarchy = Children & Data
-
-export interface Data {
+export interface Hierarchy {
   text?: string;
-}
-
-export interface Children {
   children?: Hierarchy[];
+  parent?: Hierarchy;
 }
 
 Vue.use(Checkbox)
@@ -95,12 +91,12 @@ export default Vue.extend({
   data(): {
     xlsx?: XLSX.WorkBook;
     settings: Setting[];
-    hierarchy: Hierarchy;
+    hierarchy?: Hierarchy;
   } {
     return {
       xlsx: undefined,
       settings: [],
-      hierarchy: {}
+      hierarchy: undefined
     }
   },
   watch: {
@@ -108,11 +104,7 @@ export default Vue.extend({
       this.settings = this.getSettings(value)
     },
     settings(value: Setting[]) {
-      const { xlsx } = this
-      const root = xlsx ? {
-        text: xlsx.Props ? xlsx.Props.Title : undefined
-      } : undefined
-      this.hierarchy = this.getHierarchy(value, root)
+      this.hierarchy = this.getHierarchy(value)
     }
   },
   methods: {
@@ -133,18 +125,29 @@ export default Vue.extend({
         }
       })
     },
-    getHierarchy(settings: Setting[], root?: Data): Hierarchy {
+    getHierarchy(settings: Setting[]): Hierarchy {
+      const { xlsx } = this
+      if (!xlsx) throw Error('xlsx not found.')
       return {
+        text: xlsx.Props ? xlsx.Props.Title : undefined,
         children: settings.filter(v => v.enabled).map(v => ({
           text: v.name,
-          // children: buildHierarchy()
-        })),
-        ...root
+          children: this.sheetToHierarchy(xlsx.Sheets[v.name], v)
+        }))
       }
+    },
+    sheetToHierarchy(sheet: XLSX.Sheet, setting: Setting): Hierarchy[] {
+      const cells = setting.columns.map(v => XLSX.utils.decode_col(v))
+      const [rMin, rMax] = setting.rows
+      const range = Object.entries(sheet).filter(([cell]) => {
+        const c = XLSX.utils.decode_cell(cell)
+        if (!cells.includes(c.c)) return false
+        if (c.r < rMin || rMax < c.r) return false
+        return true
+      })
+      console.log(range)
+      return []
     }
-    // buildHierarchy(sheet) {
-
-    // }
   }
 })
 </script>
