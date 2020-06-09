@@ -19,8 +19,9 @@ function createWindow () {
   win = new BrowserWindow({ width: 800, height: 600, webPreferences: {
     // Use pluginOptions.nodeIntegration, leave this alone
     // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
-    nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION
+    nodeIntegration: !!process.env.ELECTRON_NODE_INTEGRATION
   } })
+  if (!win) return
 
   if (process.env.WEBPACK_DEV_SERVER_URL) {
     // Load the url of the dev server if in development mode
