@@ -1,26 +1,33 @@
 'use strict'
 
-import { app, protocol, BrowserWindow } from 'electron'
+import { app, protocol, BrowserWindow, ipcMain } from 'electron'
 import {
   createProtocol,
   installVueDevtools
 } from 'vue-cli-plugin-electron-builder/lib'
+import { Hierarchy } from './main'
+import path from 'path'
+import { promises as fs } from 'fs'
 const isDevelopment = process.env.NODE_ENV !== 'production'
+
+const hierarchy = '\\\\127.0.0.1\\c$\\temp\\hierarchy.json'
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
 let win: BrowserWindow | null
 
 // Scheme must be registered before the app is ready
-protocol.registerSchemesAsPrivileged([{scheme: 'app', privileges: { secure: true, standard: true } }])
+protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { secure: true, standard: true } }])
 
-function createWindow () {
+function createWindow() {
   // Create the browser window.
-  win = new BrowserWindow({ width: 800, height: 600, webPreferences: {
-    // Use pluginOptions.nodeIntegration, leave this alone
-    // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
-    nodeIntegration: !!process.env.ELECTRON_NODE_INTEGRATION
-  } })
+  win = new BrowserWindow({
+    width: 800, height: 600, webPreferences: {
+      // Use pluginOptions.nodeIntegration, leave this alone
+      // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
+      nodeIntegration: !!process.env.ELECTRON_NODE_INTEGRATION
+    }
+  })
   if (!win) return
 
   if (process.env.WEBPACK_DEV_SERVER_URL) {
@@ -90,3 +97,12 @@ if (isDevelopment) {
     })
   }
 }
+
+ipcMain.handle('load', async (event) => {
+  const data = await fs.readFile(hierarchy)
+  return JSON.parse(data.toString())
+})
+ipcMain.handle('save', (event, data: Hierarchy) => {
+  return fs.writeFile(hierarchy, JSON.stringify(data))
+  // return fs.writeFile('\\\\192.168.68.110\\c$\\temp\\hierarchy.json', JSON.stringify(data))
+})

@@ -34,20 +34,15 @@
       </div>
     </el-col>
 
-    <el-col :span="6">
+    <el-col :span="12">
       <div>インポート階層</div>
-      <el-button @click="hierarchy = getHierarchy(settings)">Generate</el-button>
-      <el-button >Save (上書き)</el-button>
+      <el-button @click="generate">Generate</el-button>
+      <el-button @click="save(hierarchy)">Save (上書き)</el-button>
       <el-tree v-if="hierarchy" :data="[hierarchy]" default-expand-all>
         <template #default="{ data: { children, ...data } }">
           <div>{{ data }}</div>
         </template>
       </el-tree>
-    </el-col>
-
-    <el-col :span="6">
-      <div>結果階層</div>
-      <merge-hierarchy :from="selected" :to="god" strategy="overwrite" />
     </el-col>
   </el-row>
 </template>
@@ -57,6 +52,8 @@ import Vue from 'vue'
 import UploadXlsx from '../components/UploadXlsx.vue'
 import { Checkbox, Input, InputNumber, CheckboxButton, CheckboxGroup, Slider, TabPane, Tabs, Tree, Button, Row, Col } from 'element-ui'
 import * as XLSX from 'xlsx'
+import { Hierarchy } from '../main'
+import { ipcRenderer } from 'electron'
 
 function numToAlpha(num: number) {
   let alpha = ''
@@ -74,6 +71,14 @@ function getAlphaList(start: number, end: number): string[] {
   return arr
 }
 
+async function getDigest(text: string) {
+  const data = new TextEncoder().encode(text)
+  const buffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(buffer))
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  return hashHex
+}
+
 interface Setting {
   name: string;
   enabled: boolean;
@@ -81,12 +86,6 @@ interface Setting {
   colList: string[];
   rows: [number, number];
   rowMax: number;
-}
-
-export interface Hierarchy {
-  text?: string;
-  children?: Hierarchy[];
-  parent?: Hierarchy;
 }
 
 Vue.use(Checkbox)
@@ -108,13 +107,11 @@ export default Vue.extend({
     xlsx?: XLSX.WorkBook;
     settings: Setting[];
     hierarchy?: Hierarchy;
-    selected?: Hierarchy[];
   } {
     return {
       xlsx: undefined,
       settings: [],
-      hierarchy: undefined,
-      selected: undefined
+      hierarchy: undefined
     }
   },
   computed: {
@@ -145,23 +142,29 @@ export default Vue.extend({
         }
       })
     },
-    getHierarchy(settings: Setting[]): Hierarchy {
+    async generate() {
+      this.hierarchy = await this.getHierarchy(this.settings)
+    },
+    async getHierarchy(settings: Setting[]): Promise<Hierarchy> {
       const { xlsx } = this
       if (!xlsx) throw Error('xlsx not found.')
+      const text = xlsx.Props ? xlsx.Props.Title : undefined
       return {
-        text: xlsx.Props ? xlsx.Props.Title : undefined,
-        children: settings.filter(v => v.enabled).map(v => ({
+        text,
+        digest: await getDigest('' + text),
+        children: await Promise.all(settings.filter(v => v.enabled).map(async v => ({
           text: v.name,
-          children: this.sheetToHierarchy(xlsx.Sheets[v.name], v)
-        }))
+          digest: await getDigest([text, v.name].join(' - ')),
+          children: await this.sheetToHierarchy(xlsx.Sheets[v.name], v, [text, v.name].join(' - '))
+        })))
       }
     },
-    sheetToHierarchy(sheet: XLSX.Sheet, setting: Setting): Hierarchy[] {
+    async sheetToHierarchy(sheet: XLSX.Sheet, setting: Setting, parent: string): Promise<Hierarchy[]> {
       class Node {
         addr: XLSX.CellAddress;
         key: string;
         value: XLSX.CellObject;
-        hNode: Hierarchy;
+        hNode: Hierarchy & { digest?: string };
         parent?: Node;
         children?: Node[];
 
@@ -172,25 +175,36 @@ export default Vue.extend({
           this.hNode = { text: value.w }
         }
 
-        appendChild(child: Node) {
+        async appendChild(child: Node) {
           this.children ? this.children.push(child) : this.children = [child]
           this.hNode.children
             ? this.hNode.children.push(child.hNode)
             : this.hNode.children = [child.hNode]
           child.parent = this
+          child.hNode.digest = await this.getDigest(child)
         }
 
         findParent(node: Node): Node {
           if (!this.parent) return this
           return this.parent.addr.c < node.addr.c ? this.parent : this.parent.findParent(node)
         }
+
+        async getDigest(node: Node) {
+          const joinedText = function findParentText(node: Node): string {
+            return node.parent
+              ? [findParentText(node.parent), node.hNode.text || ''].join(' - ')
+              : node.hNode.text || 'a'
+          }(node)
+          const digest = await getDigest([joinedText].join(' - '))
+          return digest
+        }
       }
 
       const cells = setting.columns.map(v => XLSX.utils.decode_col(v))
       const rMin = setting.rows[0] - 1
       const rMax = setting.rows[1] - 1
-      const init = new Node('A0', { t: 'z' })
-      const result = Object.entries(sheet)
+      const init = new Node('A0', { t: 's', w: parent })
+      const result = await Object.entries(sheet)
         .filter(([cell]) => {
           const c = XLSX.utils.decode_cell(cell)
           if (!cells.includes(c.c)) return false
@@ -199,20 +213,30 @@ export default Vue.extend({
         })
         .filter(([, v]) => v.t != 'z')
         .map(([key, value]) => new Node(key, value))
-        .reduce((a: { root: Hierarchy; prev: Node }, c: Node) => {
+        .reduce(async (acc: Promise<{ root: Hierarchy; prev: Node }>, c: Node) => {
+          const a = await acc
           if (a.prev.addr.c < c.addr.c) {
-            a.prev.appendChild(c)
+            await a.prev.appendChild(c)
           } else if (a.prev.addr.c == c.addr.c && a.prev.parent) {
-            a.prev.parent.appendChild(c)
+            await a.prev.parent.appendChild(c)
           } else if (a.prev.addr.c > c.addr.c) {
-            a.prev.findParent(c).appendChild(c)
+            await a.prev.findParent(c).appendChild(c)
           }
           a.prev = c
           return a
-        }, { prev: init, root: init.hNode })
+        }, Promise.resolve({ prev: init, root: init.hNode }))
       console.log(result)
       console.log(init)
       return result.root.children || []
+    },
+    async save(data: Hierarchy) {
+      if (!confirm('本当にいい？')) return
+      try {
+        await ipcRenderer.invoke('save', data)
+        alert('保存しました')
+      } catch (err) {
+        alert(`保存失敗\n${err}`)
+      }
     }
   }
 })

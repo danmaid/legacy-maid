@@ -1,6 +1,7 @@
 <template>
   <div id="app">
     <div id="nav">
+      <router-link to="/treemap">treemap</router-link>
       <router-link to="/build/hierarchy">hierarchy</router-link>
     </div>
     <router-view />

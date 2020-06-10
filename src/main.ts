@@ -9,3 +9,16 @@ new Vue({
   router,
   render: h => h(App)
 }).$mount('#app')
+
+export interface Hierarchy {
+  text?: string;
+  children?: Hierarchy[];
+  parent?: Hierarchy;
+  digest?: string;
+}
+
+declare global {
+  interface Window {
+      ipcRenderer: Electron.IpcRenderer;
+  }
+}
