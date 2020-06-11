@@ -25,7 +25,9 @@ function createWindow() {
     width: 800, height: 600, webPreferences: {
       // Use pluginOptions.nodeIntegration, leave this alone
       // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
-      nodeIntegration: !!process.env.ELECTRON_NODE_INTEGRATION
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.resolve(__dirname, 'preload.js')
     }
   })
   if (!win) return
@@ -104,5 +106,4 @@ ipcMain.handle('load', async (event) => {
 })
 ipcMain.handle('save', (event, data: Hierarchy) => {
   return fs.writeFile(hierarchy, JSON.stringify(data))
-  // return fs.writeFile('\\\\192.168.68.110\\c$\\temp\\hierarchy.json', JSON.stringify(data))
 })

@@ -1,20 +1,18 @@
 <template>
   <div class="treemap">
-    <Plotly v-if="hierarchy" :data="data"></Plotly>
+    <div ref="plotly"></div>
     <!-- {{ hierarchy }} -->
   </div>
 </template>
 
 <script lang="ts">
 import Vue from 'vue'
-import { ipcRenderer } from 'electron'
 import { Hierarchy } from '../main'
 // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
 // @ts-ignore
-import { Plotly } from 'vue-plotly'
+import Plotly from 'plotly.js-dist'
 
 export default Vue.extend({
-  components: { Plotly },
   data(): { hierarchy?: Hierarchy } {
     return {
       hierarchy: undefined
@@ -64,8 +62,15 @@ export default Vue.extend({
       }]
     }
   },
+  watch: {
+      data(v) {
+          console.log('data', v)
+          console.log(this.$refs.plotly)
+        //   Plotly.newPlot(this.$refs.plotly, v)
+      }
+  },
   async mounted() {
-    this.hierarchy = await ipcRenderer.invoke('load')
+    this.hierarchy = await window.electron.load()
   }
 })
 </script>

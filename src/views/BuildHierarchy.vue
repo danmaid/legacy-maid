@@ -53,7 +53,6 @@ import UploadXlsx from '../components/UploadXlsx.vue'
 import { Checkbox, Input, InputNumber, CheckboxButton, CheckboxGroup, Slider, TabPane, Tabs, Tree, Button, Row, Col } from 'element-ui'
 import * as XLSX from 'xlsx'
 import { Hierarchy } from '../main'
-import { ipcRenderer } from 'electron'
 
 function numToAlpha(num: number) {
   let alpha = ''
@@ -123,6 +122,9 @@ export default Vue.extend({
     xlsx(value: XLSX.WorkBook) {
       this.settings = this.getSettings(value)
     }
+  },
+  mounted() {
+    console.log(window.electron)
   },
   methods: {
     getSettings(book: XLSX.WorkBook): Setting[] {
@@ -232,7 +234,7 @@ export default Vue.extend({
     async save(data: Hierarchy) {
       if (!confirm('本当にいい？')) return
       try {
-        await ipcRenderer.invoke('save', data)
+        await window.electron.save(data)
         alert('保存しました')
       } catch (err) {
         alert(`保存失敗\n${err}`)

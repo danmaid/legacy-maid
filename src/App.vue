@@ -1,8 +1,8 @@
 <template>
   <div id="app">
     <div id="nav">
-      <router-link to="/treemap">treemap</router-link>
-      <router-link to="/build/hierarchy">hierarchy</router-link>
+      <router-link to="/build/hierarchy">階層インポート</router-link>
+      <router-link to="/treemap">preview treemap</router-link>
     </div>
     <router-view />
   </div>
