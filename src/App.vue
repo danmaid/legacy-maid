@@ -1,24 +1,24 @@
 <template>
   <div id="app">
     <div id="nav">
-      <router-link to="/build/hierarchy">階層インポート</router-link>
-      <router-link to="/treemap">preview treemap</router-link>
+      <router-link tag="button" to="/treemap">preview treemap</router-link>
+      <router-link tag="button" to="/build/hierarchy">階層インポート</router-link>
+      <router-link tag="button" to="/build/items">アイテムインポート</router-link>
     </div>
-    <router-view />
+    <router-view style="flex: 1 1 100%;" />
   </div>
 </template>
 
 <style>
-#nav {
-  padding: 30px;
+body {
+  margin: 0;
 }
+</style>
 
-#nav a {
-  font-weight: bold;
-  color: #2c3e50;
-}
-
-#nav a.router-link-exact-active {
-  color: #42b983;
+<style scoped>
+#app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 </style>

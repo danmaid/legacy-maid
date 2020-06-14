@@ -1,6 +1,6 @@
 <template>
   <div class="treemap">
-    <div ref="plotly"></div>
+    <div ref="plotly" class="plotly"></div>
     <!-- {{ hierarchy }} -->
   </div>
 </template>
@@ -66,7 +66,7 @@ export default Vue.extend({
       data(v) {
           console.log('data', v)
           console.log(this.$refs.plotly)
-        //   Plotly.newPlot(this.$refs.plotly, v)
+          Plotly.newPlot(this.$refs.plotly, v)
       }
   },
   async mounted() {
@@ -74,3 +74,10 @@ export default Vue.extend({
   }
 })
 </script>
+
+<style scoped>
+.treemap,
+.plotly {
+  height: 100%;
+}
+</style>
